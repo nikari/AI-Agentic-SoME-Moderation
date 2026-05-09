@@ -5,7 +5,7 @@ Escalate to ESCALATION_MODEL only with an explicit reason.
 Use CLASSIFIER_MODEL for cheap, high-volume classification steps.
 """
 
-MODERATOR_MODEL = "anthropic/claude-sonnet-4-6"
-SUMMARIZER_MODEL = "anthropic/claude-sonnet-4-6"
-CLASSIFIER_MODEL = "anthropic/claude-haiku-4-5-20251001"
-ESCALATION_MODEL = "anthropic/claude-opus-4-7"
+MODERATOR_MODEL = "gemini/gemini-2.5-flash"
+SUMMARIZER_MODEL = "gemini/gemini-2.5-flash"
+CLASSIFIER_MODEL = "gemini/gemini-2.0-flash"
+ESCALATION_MODEL = "gemini/gemini-2.5-pro"

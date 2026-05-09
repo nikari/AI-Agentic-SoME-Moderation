@@ -8,7 +8,6 @@ version = "0.1.0"
 description = "Agentic social media content moderation system"
 requires-python = ">=3.11"
 dependencies = [
-    "anthropic>=0.40.0",
     "langfuse>=2.0.0",
     "litellm>=1.50.0",
     "pydantic>=2.0.0",

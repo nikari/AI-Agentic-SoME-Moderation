@@ -45,8 +45,7 @@ Two people can work independently:
 
 ## Tech stack
 
-- **Anthropic SDK** — provider-specific Claude features (citations, files, extended thinking)
-- **LiteLLM** — unified LLM interface for everything else (provider switching, eval comparisons)
+- **LiteLLM** — unified LLM interface; routes all calls to Google AI Studio (Gemini)
 - **Pydantic** — all structured outputs, configs, and tool schemas
 - **Langfuse** — tracing layer; every LLM call wraps through it so traces are consistent across teammates
 - **pytest** — tests
@@ -73,7 +72,7 @@ uv run python scripts/run_pipeline.py "..." --id post-123 --platform twitter
 
 - Type hints required everywhere
 - Pydantic `BaseModel` for every structured boundary (LLM outputs, configs, tool schemas)
-- Default model: `claude-sonnet-4-6` (Sonnet 4.6). Escalate to `claude-opus-4-7` only with an explicit reason; use `claude-haiku-4-5` for cheap classification
+- Default model: `gemini/gemini-2.5-flash`. Escalate to `gemini/gemini-2.5-pro` only with an explicit reason; use `gemini/gemini-2.0-flash` for cheap classification
 - Never bypass LiteLLM with raw `requests` / `httpx` calls to a provider
 - Every committed LLM call goes through Langfuse — no untraced calls in the codebase
 - Async by default for agent loops; sync only for scripts
@@ -102,13 +101,13 @@ uv run python scripts/run_pipeline.py "..." --id post-123 --platform twitter
 
 ## First-time setup
 
-1. Copy `.env.example` → `.env` and fill in `ANTHROPIC_API_KEY`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`
+1. Copy `.env.example` → `.env` and fill in `GEMINI_API_KEY`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`
 2. `uv sync`
 3. `pytest` to verify (all tests are mocked — no API keys needed)
 
 ## Links
 
-- [Anthropic SDK docs](https://docs.anthropic.com/)
+- [Google AI Studio](https://aistudio.google.com/)
 - [LiteLLM docs](https://docs.litellm.ai/)
 - [Langfuse docs](https://langfuse.com/docs)
 - [EU Digital Services Act (Regulation 2022/2065)](https://eur-lex.europa.eu/eli/reg/2022/2065/oj)
