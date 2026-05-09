@@ -1,2 +1,11 @@
 AI SoMe moderation.md.txt
 Aalto agentic moderation-1.pdf
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# Env
+.env
