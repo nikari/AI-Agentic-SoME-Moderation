@@ -52,7 +52,7 @@ async def summarize(post: Post, results: list[ModerationResult]) -> ModerationRe
             {"role": "user", "content": _build_user_message(results)},
         ],
         response_format={"type": "json_object"},
-        max_tokens=512,
+        max_tokens=1024,
         metadata={
             "generation_name": "summarizer-report",
             "trace_name": "moderation-pipeline",
