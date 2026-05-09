@@ -6,8 +6,8 @@ Use CLASSIFIER_MODEL for cheap, high-volume classification steps.
 APPEAL_MODEL is used by the appeal AI re-evaluation step.
 """
 
-MODERATOR_MODEL = "anthropic/claude-sonnet-4-6"
-SUMMARIZER_MODEL = "anthropic/claude-sonnet-4-6"
+MODERATOR_MODEL = "anthropic/claude-haiku-4-5-20251001"
+SUMMARIZER_MODEL = "anthropic/claude-haiku-4-5-20251001"
 CLASSIFIER_MODEL = "anthropic/claude-haiku-4-5-20251001"
-ESCALATION_MODEL = "anthropic/claude-opus-4-7"
-APPEAL_MODEL = "anthropic/claude-opus-4-7"
+ESCALATION_MODEL = "anthropic/claude-sonnet-4-6"
+APPEAL_MODEL = "anthropic/claude-sonnet-4-6"

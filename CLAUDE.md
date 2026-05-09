@@ -102,7 +102,7 @@ uv run streamlit run scripts/app.py
 
 - Type hints required everywhere
 - Pydantic `BaseModel` for every structured boundary (LLM outputs, configs, tool schemas)
-- Default model: `claude-sonnet-4-6` (`MODERATOR_MODEL` / `SUMMARIZER_MODEL`). Escalate to `claude-opus-4-7` only with an explicit reason (`ESCALATION_MODEL` / `APPEAL_MODEL`); use `claude-haiku-4-5` for cheap classification (`CLASSIFIER_MODEL`)
+- Default model: `claude-haiku-4-5` (`MODERATOR_MODEL` / `SUMMARIZER_MODEL` / `CLASSIFIER_MODEL`). Escalate to `claude-sonnet-4-6` only with an explicit reason (`ESCALATION_MODEL` / `APPEAL_MODEL` — used by the appeal AI re-evaluation step)
 - Never bypass LiteLLM with raw `requests` / `httpx` calls to a provider
 - Every committed LLM call goes through Langfuse — no untraced calls in the codebase
 - Async by default for agent loops; sync only for scripts
