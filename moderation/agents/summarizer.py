@@ -39,8 +39,9 @@ Return only the JSON object. No other text.\
 """
 
 
-def _build_user_message(results: list[ModerationResult]) -> str:
-    return "\n".join(f"Agent {i + 1}: {r.model_dump_json()}" for i, r in enumerate(results))
+def _build_user_message(post: Post, results: list[ModerationResult]) -> str:
+    results_text = "\n".join(f"Agent {i + 1}: {r.model_dump_json()}" for i, r in enumerate(results))
+    return f"Post content:\n{post.content}\n\nModeration results:\n{results_text}"
 
 
 async def summarize(post: Post, results: list[ModerationResult]) -> ModerationReport:
@@ -49,7 +50,7 @@ async def summarize(post: Post, results: list[ModerationResult]) -> ModerationRe
         model=SUMMARIZER_MODEL,
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
-            {"role": "user", "content": _build_user_message(results)},
+            {"role": "user", "content": _build_user_message(post, results)},
         ],
         response_format={"type": "json_object"},
         max_tokens=1024,
