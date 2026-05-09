@@ -9,31 +9,65 @@ signature (Post -> ModerationResult) and add it to moderate() below.
 import litellm
 
 from moderation.models import MODERATOR_MODEL
-from moderation.utils import parse_json_response
 from moderation.schemas import (
     ModerationDecision,
     ModerationResult,
     Post,
-    ScamCategory,
     Severity,
+    ViolationCategory,
+    ViolationScore,
 )
+from moderation.utils import parse_json_response
 
 _SYSTEM_PROMPT = """\
-You are a social media content moderator specialising in cryptocurrency scam detection.
+You are a social media content moderator assessing posts for violations of the EU
+Digital Services Act.
 
-Analyse the post and return a JSON object.
+Score the post against these violation categories (0.0–1.0 = likelihood the category applies):
+- crypto_scam:       cryptocurrency scams (rugpulls, fake giveaways, impersonation,
+                     pump-and-dumps, phishing)
+- hate_speech:       attacks on protected groups (race, religion, gender, sexuality, …)
+- harassment:        bullying, threats, or targeted abuse of an individual
+- misinformation:    demonstrably false claims with risk of public harm
+- spam:              bulk unsolicited commercial content
+- privacy_violation: doxxing or non-consensual sharing of personal info / images
+- self_harm:         glorification of, or instructions for, self-harm or suicide
+- csam:              child sexual abuse material
+- terrorism:         terrorist content, recruitment, or glorification
+- ip_infringement:   copyright violations, counterfeit goods promotion
+- other:             any other illegal content under the DSA not covered above
 
-If the post is ALLOWED, return only:
+Cryptocurrency scam detection is the primary use case — be especially thorough on `crypto_scam`.
+
+Return a JSON object.
+
+If the post is ALLOWED (no violations), return:
 {"decision": "allowed", "confidence": <float 0.0–1.0>}
 
 If the post is FLAGGED, return:
-{"decision": "flagged", "reasoning": "<1–3 sentence explanation>",
+{"decision": "flagged",
+ "reasoning": "<1–3 sentence explanation>",
  "severity": "low"|"medium"|"high"|"critical",
- "scam_category": "rugpull"|"fake_giveaway"|"impersonation"|"pump_and_dump"|"phishing"|"other",
+ "violations": [
+    {"category": "<category>", "score": <0.0-1.0>, "reasoning": "<1 sentence>"},
+    ...
+ ],
  "confidence": <float 0.0–1.0>}
 
+Only include violations where score > 0. Sort by score descending.
 Return only the JSON object. No other text.\
 """
+
+
+def _parse_violations(raw_violations: list[dict]) -> list[ViolationScore]:
+    return [
+        ViolationScore(
+            category=ViolationCategory(v["category"]),
+            score=float(v["score"]),
+            reasoning=v.get("reasoning"),
+        )
+        for v in raw_violations
+    ]
 
 
 async def _run_agent(post: Post, model: str = MODERATOR_MODEL) -> ModerationResult:
@@ -57,7 +91,7 @@ async def _run_agent(post: Post, model: str = MODERATOR_MODEL) -> ModerationResu
         decision=ModerationDecision(raw["decision"]),
         reasoning=raw.get("reasoning"),
         severity=Severity(raw["severity"]) if raw.get("severity") else None,
-        scam_category=ScamCategory(raw["scam_category"]) if raw.get("scam_category") else None,
+        violations=_parse_violations(raw.get("violations", [])),
         confidence=float(raw["confidence"]),
     )
 

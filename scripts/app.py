@@ -11,9 +11,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from moderation.pipeline import run_pipeline
-from moderation.schemas import ModerationDecision, Post, RecommendedAction
-from moderation.tracing import setup_tracing
+from moderation.pipeline import run_pipeline  # noqa: E402
+from moderation.schemas import ModerationDecision, Post, RecommendedAction  # noqa: E402
+from moderation.tracing import setup_tracing  # noqa: E402
 
 setup_tracing()
 
@@ -59,7 +59,7 @@ if st.button("Analyse", type="primary", disabled=not post_text.strip()):
     else:
         st.success("✅ Post allowed")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
 
     with col1:
         st.metric("Confidence", f"{report.confidence:.0%}")
@@ -68,8 +68,15 @@ if st.button("Analyse", type="primary", disabled=not post_text.strip()):
         severity_label = report.severity.value.capitalize() if report.severity else "—"
         st.metric("Severity", severity_label)
 
-    with col3:
-        st.metric("Category", report.scam_category.value.replace("_", " ").title() if report.scam_category else "—")
+    st.subheader("Violations")
+    if report.violations:
+        for v in report.violations:
+            label = v.category.value.replace("_", " ").title()
+            st.progress(v.score, text=f"{label} — {v.score:.0%}")
+            if v.reasoning:
+                st.caption(v.reasoning)
+    else:
+        st.write("—")
 
     st.subheader("Recommended action")
     st.info(_ACTION_LABELS[report.recommended_action])

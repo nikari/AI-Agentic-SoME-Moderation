@@ -28,8 +28,8 @@ Post → moderate() → [ModerationResult, …] → summarize() → ModerationRe
                                               else → re-route by new conf
 ```
 
-- **`moderate()`** — one or more agents each return a `ModerationResult` (decision, reasoning, severity, scam category, confidence)
-- **`summarize()`** — synthesises results into a final `ModerationReport` with a DSA Art. 17 explanation and recommended action
+- **`moderate()`** — one or more agents each return a `ModerationResult` (decision, reasoning, severity, sparse `violations` list scoring each DSA category, confidence)
+- **`summarize()`** — synthesises results into a final `ModerationReport` with a DSA Art. 17 explanation, recommended action, and merged violations list
 - **`routing.route_initial()`** / **`routing.route_appeal()`** — pure, deterministic routing functions over confidence
 - **`appeal.handle_appeal()`** — orchestrates the appeal flow (AI re-eval, human review, optional 3-person panel)
 - **`review.py`** — typed stubs for `single_review`, `panel_review`, `notify_sender`. The reviewer functions raise `NotImplementedError` until wired to a real UI; `notify_sender` prints to stdout
@@ -112,7 +112,7 @@ uv run streamlit run scripts/app.py
 
 - **Moderation action** — remove / flag / shadow-ban / escalate
 - **Explanation** — the DSA Art. 17 statement of reasons attached to every action
-- **Scam category** — taxonomy: rugpull, fake giveaway, impersonation, pump_and_dump, phishing, other
+- **Violation category** — DSA-aligned taxonomy in `ViolationCategory`: crypto_scam, hate_speech, harassment, misinformation, spam, privacy_violation, self_harm, csam, terrorism, ip_infringement, other. The moderator returns a sparse list of `ViolationScore`s; `crypto_scam` remains the primary eval focus
 - **Moderator** vs **evaluator** — distinct agents; boundaries TBD
 
 ## Definition of done for a moderation feature

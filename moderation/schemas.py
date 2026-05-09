@@ -21,13 +21,28 @@ class Severity(StrEnum):
     CRITICAL = "critical"
 
 
-class ScamCategory(StrEnum):
-    RUGPULL = "rugpull"
-    FAKE_GIVEAWAY = "fake_giveaway"
-    IMPERSONATION = "impersonation"
-    PUMP_AND_DUMP = "pump_and_dump"
-    PHISHING = "phishing"
+class ViolationCategory(StrEnum):
+    """Broad DSA-aligned violation categories. Crypto_scam is the primary eval focus."""
+
+    CRYPTO_SCAM = "crypto_scam"
+    HATE_SPEECH = "hate_speech"
+    HARASSMENT = "harassment"
+    MISINFORMATION = "misinformation"
+    SPAM = "spam"
+    PRIVACY_VIOLATION = "privacy_violation"
+    SELF_HARM = "self_harm"
+    CSAM = "csam"
+    TERRORISM = "terrorism"
+    IP_INFRINGEMENT = "ip_infringement"
     OTHER = "other"
+
+
+class ViolationScore(BaseModel):
+    """Per-category likelihood score from a moderation agent."""
+
+    category: ViolationCategory
+    score: float = Field(ge=0.0, le=1.0)  # likelihood this category applies
+    reasoning: str | None = None  # 1-sentence justification
 
 
 class RecommendedAction(StrEnum):
@@ -54,7 +69,7 @@ class ModerationResult(BaseModel):
     decision: ModerationDecision
     reasoning: str | None = None
     severity: Severity | None = None
-    scam_category: ScamCategory | None = None
+    violations: list[ViolationScore] = Field(default_factory=list)
     confidence: float = Field(ge=0.0, le=1.0)
 
 
@@ -65,7 +80,7 @@ class ModerationReport(BaseModel):
     verdict: ModerationDecision
     reasoning: str | None = None
     severity: Severity | None = None
-    scam_category: ScamCategory | None = None
+    violations: list[ViolationScore] = Field(default_factory=list)
     recommended_action: RecommendedAction
     dsa_explanation: str | None = None  # DSA Art. 17 statement of reasons; None if allowed
     confidence: float = Field(ge=0.0, le=1.0)

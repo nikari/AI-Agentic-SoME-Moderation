@@ -21,7 +21,9 @@ def test_markdown_fenced_no_lang():
 
 def test_literal_newline_in_string():
     # Model puts a real newline inside a string — the bug we saw at char 282
-    raw = '{\n  "decision": "flagged",\n  "reasoning": "Line one\nLine two",\n  "confidence": 0.9\n}'
+    raw = (
+        '{\n  "decision": "flagged",\n  "reasoning": "Line one\nLine two",\n  "confidence": 0.9\n}'
+    )
     result = parse_json_response(raw)
     assert result["decision"] == "flagged"
     assert "Line one" in result["reasoning"]

@@ -10,6 +10,8 @@ from moderation.schemas import (
     Post,
     RecommendedAction,
     Severity,
+    ViolationCategory,
+    ViolationScore,
 )
 
 
@@ -31,6 +33,7 @@ def _flagged_result(post_id: str = "p1", severity: Severity = Severity.HIGH) -> 
         decision=ModerationDecision.FLAGGED,
         reasoning="Scam detected.",
         severity=severity,
+        violations=[ViolationScore(category=ViolationCategory.CRYPTO_SCAM, score=0.9)],
         confidence=0.9,
     )
 
@@ -46,50 +49,60 @@ def _allowed_result(post_id: str = "p1") -> ModerationResult:
 
 @patch("moderation.agents.summarizer.litellm.acompletion", new_callable=AsyncMock)
 async def test_summarize_flagged_post(mock_acompletion: AsyncMock) -> None:
-    mock_acompletion.return_value = _mock_response({
-        "verdict": "flagged",
-        "reasoning": "Multiple scam indicators confirmed.",
-        "severity": "high",
-        "scam_category": "pump_and_dump",
-        "recommended_action": "remove",
-        "dsa_explanation": "Removed per DSA Art. 17.",
-        "confidence": 0.93,
-    })
+    mock_acompletion.return_value = _mock_response(
+        {
+            "verdict": "flagged",
+            "reasoning": "Multiple scam indicators confirmed.",
+            "severity": "high",
+            "violations": [
+                {"category": "crypto_scam", "score": 0.93, "reasoning": "Pump-and-dump."}
+            ],
+            "recommended_action": "remove",
+            "dsa_explanation": "Removed per DSA Art. 17.",
+            "confidence": 0.93,
+        }
+    )
     report = await summarize(Post(id="p1", content="BUY MOONTOKEN!"), [_flagged_result()])
     assert report.verdict == ModerationDecision.FLAGGED
     assert report.recommended_action == RecommendedAction.REMOVE
     assert report.dsa_explanation != ""
+    assert report.violations[0].category == ViolationCategory.CRYPTO_SCAM
 
 
 @patch("moderation.agents.summarizer.litellm.acompletion", new_callable=AsyncMock)
 async def test_summarize_allowed_post(mock_acompletion: AsyncMock) -> None:
-    mock_acompletion.return_value = _mock_response({
-        "verdict": "allowed",
-        "reasoning": "No violation found.",
-        "severity": None,
-        "scam_category": None,
-        "recommended_action": "none",
-        "dsa_explanation": "No action taken.",
-        "confidence": 0.97,
-    })
+    mock_acompletion.return_value = _mock_response(
+        {
+            "verdict": "allowed",
+            "reasoning": "No violation found.",
+            "severity": None,
+            "violations": [],
+            "recommended_action": "none",
+            "dsa_explanation": None,
+            "confidence": 0.97,
+        }
+    )
     report = await summarize(Post(id="p2", content="Normal post."), [_allowed_result("p2")])
     assert report.verdict == ModerationDecision.ALLOWED
     assert report.recommended_action == RecommendedAction.NONE
     assert report.severity is None
+    assert report.violations == []
 
 
 @patch("moderation.agents.summarizer.litellm.acompletion", new_callable=AsyncMock)
 async def test_summarize_resolves_conflict(mock_acompletion: AsyncMock) -> None:
     # Two agents disagree — summarizer should resolve to flagged
-    mock_acompletion.return_value = _mock_response({
-        "verdict": "flagged",
-        "reasoning": "One agent flagged; on balance the post is suspicious.",
-        "severity": "medium",
-        "scam_category": "other",
-        "recommended_action": "flag",
-        "dsa_explanation": "Flagged for review per DSA Art. 17.",
-        "confidence": 0.7,
-    })
+    mock_acompletion.return_value = _mock_response(
+        {
+            "verdict": "flagged",
+            "reasoning": "One agent flagged; on balance the post is suspicious.",
+            "severity": "medium",
+            "violations": [{"category": "other", "score": 0.55}],
+            "recommended_action": "flag",
+            "dsa_explanation": "Flagged for review per DSA Art. 17.",
+            "confidence": 0.7,
+        }
+    )
     results = [_flagged_result(severity=Severity.MEDIUM), _allowed_result()]
     report = await summarize(Post(id="p3", content="Borderline post."), results)
     assert report.verdict == ModerationDecision.FLAGGED
@@ -99,9 +112,13 @@ async def test_summarize_resolves_conflict(mock_acompletion: AsyncMock) -> None:
 @patch("moderation.agents.summarizer.litellm.acompletion", new_callable=AsyncMock)
 async def test_summarize_handles_markdown_fenced_response(mock_acompletion: AsyncMock) -> None:
     payload = {
-        "verdict": "flagged", "reasoning": "Scam.", "severity": "high",
-        "scam_category": "fake_giveaway", "recommended_action": "remove",
-        "dsa_explanation": "Removed.", "confidence": 0.9,
+        "verdict": "flagged",
+        "reasoning": "Scam.",
+        "severity": "high",
+        "violations": [{"category": "crypto_scam", "score": 0.9}],
+        "recommended_action": "remove",
+        "dsa_explanation": "Removed.",
+        "confidence": 0.9,
     }
     raw = f"```json\n{json.dumps(payload)}\n```"
     mock_acompletion.return_value = _mock_raw_response(raw)
@@ -113,7 +130,8 @@ async def test_summarize_handles_markdown_fenced_response(mock_acompletion: Asyn
 async def test_summarize_handles_newline_in_dsa_explanation(mock_acompletion: AsyncMock) -> None:
     raw = (
         '{"verdict": "flagged", "reasoning": "Scam.", "severity": "high", '
-        '"scam_category": "other", "recommended_action": "remove", '
+        '"violations": [{"category": "other", "score": 0.7}], '
+        '"recommended_action": "remove", '
         '"dsa_explanation": "First sentence.\nSecond sentence.", "confidence": 0.88}'
     )
     mock_acompletion.return_value = _mock_raw_response(raw)
