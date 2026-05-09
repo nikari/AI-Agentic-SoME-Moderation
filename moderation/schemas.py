@@ -52,7 +52,7 @@ class ModerationResult(BaseModel):
 
     post_id: str
     decision: ModerationDecision
-    reasoning: str
+    reasoning: str | None = None
     severity: Severity | None = None
     scam_category: ScamCategory | None = None
     confidence: float = Field(ge=0.0, le=1.0)
@@ -63,11 +63,11 @@ class ModerationReport(BaseModel):
 
     post_id: str
     verdict: ModerationDecision
-    reasoning: str
+    reasoning: str | None = None
     severity: Severity | None = None
     scam_category: ScamCategory | None = None
     recommended_action: RecommendedAction
-    dsa_explanation: str  # DSA Art. 17 statement of reasons
+    dsa_explanation: str | None = None  # DSA Art. 17 statement of reasons; None if allowed
     confidence: float = Field(ge=0.0, le=1.0)
 
 

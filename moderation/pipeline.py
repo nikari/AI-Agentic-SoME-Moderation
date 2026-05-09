@@ -7,8 +7,10 @@ from moderation.routing import route_initial
 from moderation.schemas import (
     Case,
     CaseStatus,
+    ModerationDecision,
     ModerationReport,
     Post,
+    RecommendedAction,
     ReviewerVerdict,
     Route,
 )
@@ -17,6 +19,14 @@ from moderation.schemas import (
 async def run_pipeline(post: Post) -> ModerationReport:
     """Run the AI portion of the moderation pipeline on a single post."""
     results = await moderate(post)
+    if all(r.decision == ModerationDecision.ALLOWED for r in results):
+        avg_confidence = sum(r.confidence for r in results) / len(results)
+        return ModerationReport(
+            post_id=post.id,
+            verdict=ModerationDecision.ALLOWED,
+            recommended_action=RecommendedAction.NONE,
+            confidence=avg_confidence,
+        )
     return await summarize(post, results)
 
 
@@ -62,9 +72,9 @@ async def run_pipeline_with_routing(post: Post) -> Case:
 
     # HOLD_AWAIT_APPEAL
     msg = (
-        f"Your post is currently held for moderation. {report.dsa_explanation} "
+        f"Your post is currently held for moderation. {report.dsa_explanation or ''} "
         "You may appeal this decision."
-    )
+    ).strip()
     case.final_message_to_sender = msg
     case.history.append("notified sender; awaiting appeal")
     notify_sender(post, msg)

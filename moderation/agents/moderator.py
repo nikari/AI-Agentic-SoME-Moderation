@@ -21,13 +21,16 @@ from moderation.schemas import (
 _SYSTEM_PROMPT = """\
 You are a social media content moderator specialising in cryptocurrency scam detection.
 
-Analyse the post and return a JSON object with exactly these fields:
-- "decision": "allowed" or "flagged"
-- "reasoning": 1–3 sentence explanation
-- "severity": null if allowed, otherwise "low", "medium", "high", or "critical"
-- "scam_category": null if allowed, otherwise one of:
-  "rugpull", "fake_giveaway", "impersonation", "pump_and_dump", "phishing", "other"
-- "confidence": float 0.0–1.0
+Analyse the post and return a JSON object.
+
+If the post is ALLOWED, return only:
+{"decision": "allowed", "confidence": <float 0.0–1.0>}
+
+If the post is FLAGGED, return:
+{"decision": "flagged", "reasoning": "<1–3 sentence explanation>",
+ "severity": "low"|"medium"|"high"|"critical",
+ "scam_category": "rugpull"|"fake_giveaway"|"impersonation"|"pump_and_dump"|"phishing"|"other",
+ "confidence": <float 0.0–1.0>}
 
 Return only the JSON object. No other text.\
 """
@@ -52,7 +55,7 @@ async def _run_agent(post: Post, model: str = MODERATOR_MODEL) -> ModerationResu
     return ModerationResult(
         post_id=post.id,
         decision=ModerationDecision(raw["decision"]),
-        reasoning=raw["reasoning"],
+        reasoning=raw.get("reasoning"),
         severity=Severity(raw["severity"]) if raw.get("severity") else None,
         scam_category=ScamCategory(raw["scam_category"]) if raw.get("scam_category") else None,
         confidence=float(raw["confidence"]),

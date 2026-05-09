@@ -74,8 +74,10 @@ if st.button("Analyse", type="primary", disabled=not post_text.strip()):
     st.subheader("Recommended action")
     st.info(_ACTION_LABELS[report.recommended_action])
 
-    st.subheader("Reasoning")
-    st.write(report.reasoning)
+    if report.reasoning:
+        st.subheader("Reasoning")
+        st.write(report.reasoning)
 
-    with st.expander("DSA Art. 17 Statement of Reasons"):
-        st.write(report.dsa_explanation)
+    if report.dsa_explanation:
+        with st.expander("DSA Art. 17 Statement of Reasons"):
+            st.write(report.dsa_explanation)
