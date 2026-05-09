@@ -20,7 +20,6 @@ from moderation.schemas import (  # noqa: E402
     ModerationDecision,
     Post,
     RecommendedAction,
-    ReviewerVerdict,
     Route,
 )
 from moderation.tracing import setup_tracing  # noqa: E402
@@ -59,7 +58,7 @@ for _key, _default in [
 
 st.set_page_config(page_title="Content Moderator", page_icon="🛡️", layout="centered")
 st.title("🛡️ AI Content Moderator")
-st.caption("Crypto scam detection · DSA Art. 17 compliant")
+
 
 # ── Stage: input ──────────────────────────────────────────────────────────────
 
@@ -100,16 +99,17 @@ if st.session_state.stage in ("moderated", "appealing", "done"):
         st.success("✅ Post allowed")
 
     # Metrics
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
         st.metric("Confidence", f"{report.confidence:.0%}")
     with col2:
         st.metric("Severity", report.severity.value.capitalize() if report.severity else "—")
-    with col3:
-        st.metric(
-            "Category",
-            report.scam_category.value.replace("_", " ").title() if report.scam_category else "—",
-        )
+
+    if report.violations:
+        st.subheader("Violation scores")
+        for v in report.violations:
+            label = v.category.value.replace("_", " ").title()
+            st.progress(v.score, text=f"{label} — {v.score:.0%}")
 
     if report.recommended_action != RecommendedAction.NONE:
         st.subheader("Recommended action")
