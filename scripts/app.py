@@ -26,6 +26,13 @@ from moderation.tracing import setup_tracing  # noqa: E402
 
 setup_tracing()
 
+
+def _reset() -> None:
+    for key in ("stage", "report", "route", "post", "appeal_route", "panel_votes", "final_message"):
+        st.session_state[key] = {"stage": "input"}.get(key)
+    st.session_state.stage = "input"
+
+
 _ACTION_LABELS: dict[RecommendedAction, str] = {
     RecommendedAction.NONE: "No action",
     RecommendedAction.FLAG: "Flag for review",
@@ -125,8 +132,15 @@ if st.session_state.stage in ("moderated", "appealing", "done"):
 
     # Route badge
     st.divider()
-    st.subheader("Routing decision")
-    st.write(_ROUTE_LABELS[route])
+    col_route, col_new = st.columns([4, 1])
+    with col_route:
+        st.subheader("Routing decision")
+        st.write(_ROUTE_LABELS[route])
+    with col_new:
+        st.write("")
+        if st.button("＋ New post", use_container_width=True):
+            _reset()
+            st.rerun()
 
     # ── SINGLE_REVIEW_FINAL: inline human review ──────────────────────────────
     if route == Route.SINGLE_REVIEW_FINAL and st.session_state.stage == "moderated":
@@ -233,8 +247,6 @@ if st.session_state.stage == "done":
     else:
         st.error(msg)
 
-    if st.button("🔄 Moderate another post"):
-        for key in ("stage", "report", "route", "post", "appeal_route", "panel_votes", "final_message"):
-            st.session_state[key] = {"stage": "input"}.get(key)
-        st.session_state.stage = "input"
+    if st.button("＋ New post"):
+        _reset()
         st.rerun()
