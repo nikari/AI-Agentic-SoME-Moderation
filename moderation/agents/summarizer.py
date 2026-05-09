@@ -6,11 +6,10 @@ Receives the original post and all moderation results, resolves conflicts,
 and returns a DSA Art. 17 compliant ModerationReport.
 """
 
-import json
-
 import litellm
 
 from moderation.models import SUMMARIZER_MODEL
+from moderation.utils import parse_json_response
 from moderation.schemas import (
     ModerationDecision,
     ModerationReport,
@@ -60,7 +59,7 @@ async def summarize(post: Post, results: list[ModerationResult]) -> ModerationRe
             "trace_user_id": post.author_id,
         },
     )
-    raw = json.loads(response.choices[0].message.content)
+    raw = parse_json_response(response.choices[0].message.content)
     return ModerationReport(
         post_id=post.id,
         verdict=ModerationDecision(raw["verdict"]),

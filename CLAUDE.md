@@ -66,6 +66,9 @@ ruff check . && ruff format . # lint + format
 # Try the pipeline end-to-end (needs real API keys)
 uv run python scripts/run_pipeline.py "Buy MOONTOKEN now — 100x guaranteed!"
 uv run python scripts/run_pipeline.py "..." --id post-123 --platform twitter
+
+# Launch the Streamlit UI
+uv run streamlit run scripts/app.py
 ```
 
 ## Coding conventions

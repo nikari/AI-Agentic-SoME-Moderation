@@ -6,11 +6,10 @@ To add a second agent, define a new async function following the same
 signature (Post -> ModerationResult) and add it to moderate() below.
 """
 
-import json
-
 import litellm
 
 from moderation.models import MODERATOR_MODEL
+from moderation.utils import parse_json_response
 from moderation.schemas import (
     ModerationDecision,
     ModerationResult,
@@ -42,14 +41,14 @@ async def _run_agent(post: Post) -> ModerationResult:
             {"role": "user", "content": post.content},
         ],
         response_format={"type": "json_object"},
-        max_tokens=512,
+        max_tokens=1024,
         metadata={
             "generation_name": "moderator-decision",
             "trace_name": "moderation-pipeline",
             "trace_user_id": post.author_id,
         },
     )
-    raw = json.loads(response.choices[0].message.content)
+    raw = parse_json_response(response.choices[0].message.content)
     return ModerationResult(
         post_id=post.id,
         decision=ModerationDecision(raw["decision"]),
