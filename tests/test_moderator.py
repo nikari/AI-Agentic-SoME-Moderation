@@ -21,13 +21,15 @@ def _mock_raw_response(raw: str) -> MagicMock:
 
 @patch("moderation.agents.moderator.litellm.acompletion", new_callable=AsyncMock)
 async def test_moderate_flags_scam(mock_acompletion: AsyncMock) -> None:
-    mock_acompletion.return_value = _mock_response({
-        "decision": "flagged",
-        "reasoning": "Classic pump-and-dump language.",
-        "severity": "high",
-        "scam_category": "pump_and_dump",
-        "confidence": 0.95,
-    })
+    mock_acompletion.return_value = _mock_response(
+        {
+            "decision": "flagged",
+            "reasoning": "Classic pump-and-dump language.",
+            "severity": "high",
+            "scam_category": "pump_and_dump",
+            "confidence": 0.95,
+        }
+    )
     results = await moderate(Post(id="p1", content="BUY MOONTOKEN NOW 100X GUARANTEED!"))
 
     assert len(results) == 1
@@ -41,13 +43,15 @@ async def test_moderate_flags_scam(mock_acompletion: AsyncMock) -> None:
 
 @patch("moderation.agents.moderator.litellm.acompletion", new_callable=AsyncMock)
 async def test_moderate_allows_clean_post(mock_acompletion: AsyncMock) -> None:
-    mock_acompletion.return_value = _mock_response({
-        "decision": "allowed",
-        "reasoning": "No scam indicators detected.",
-        "severity": None,
-        "scam_category": None,
-        "confidence": 0.98,
-    })
+    mock_acompletion.return_value = _mock_response(
+        {
+            "decision": "allowed",
+            "reasoning": "No scam indicators detected.",
+            "severity": None,
+            "scam_category": None,
+            "confidence": 0.98,
+        }
+    )
     results = await moderate(Post(id="p2", content="Bitcoin had an interesting week."))
 
     r = results[0]

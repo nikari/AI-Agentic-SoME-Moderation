@@ -33,9 +33,9 @@ Return only the JSON object. No other text.\
 """
 
 
-async def _run_agent(post: Post) -> ModerationResult:
+async def _run_agent(post: Post, model: str = MODERATOR_MODEL) -> ModerationResult:
     response = await litellm.acompletion(
-        model=MODERATOR_MODEL,
+        model=model,
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user", "content": post.content},

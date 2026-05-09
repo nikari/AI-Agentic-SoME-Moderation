@@ -1,11 +1,71 @@
-"""Pipeline: Post → moderation agents → summarizer → ModerationReport."""
+"""Pipeline: Post → moderation agents → summarizer → ModerationReport → Case."""
 
 from moderation.agents.moderator import moderate
 from moderation.agents.summarizer import summarize
-from moderation.schemas import ModerationReport, Post
+from moderation.review import notify_sender, single_review
+from moderation.routing import route_initial
+from moderation.schemas import (
+    Case,
+    CaseStatus,
+    ModerationReport,
+    Post,
+    ReviewerVerdict,
+    Route,
+)
 
 
 async def run_pipeline(post: Post) -> ModerationReport:
-    """Run the full moderation pipeline on a single post."""
+    """Run the AI portion of the moderation pipeline on a single post."""
     results = await moderate(post)
     return await summarize(post, results)
+
+
+async def run_pipeline_with_routing(post: Post) -> Case:
+    """Run the AI pipeline and apply the initial routing decision.
+
+    Outcomes:
+      - AUTO_PUBLISH         → terminal Case (status=PUBLISHED)
+      - SINGLE_REVIEW_FINAL  → calls the single_review stub immediately;
+                                terminal Case (PUBLISHED or BLOCKED)
+      - HOLD_AWAIT_APPEAL    → PENDING Case; sender notified; appeal handled
+                                separately via moderation.appeal.handle_appeal
+    """
+    report = await run_pipeline(post)
+    route = route_initial(report)
+    case = Case(post_id=post.id, report=report, route=route)
+    case.history.append(f"initial route: {route.value} (confidence={report.confidence:.2f})")
+
+    if route == Route.AUTO_PUBLISH:
+        case.status = CaseStatus.PUBLISHED
+        case.final_message_to_sender = "Your post has been published."
+        case.history.append("auto-published")
+        return case
+
+    if route == Route.SINGLE_REVIEW_FINAL:
+        verdict = await single_review(post, report, allow_uncertain=False)
+        case.history.append(f"single reviewer verdict: {verdict.value}")
+        if verdict == ReviewerVerdict.UNCERTAIN:
+            raise ValueError(
+                "single_review returned UNCERTAIN at SINGLE_REVIEW_FINAL tier, "
+                "where only APPROVE or DENY are valid"
+            )
+        if verdict == ReviewerVerdict.APPROVE:
+            case.status = CaseStatus.PUBLISHED
+            case.final_message_to_sender = "Your post has been reviewed by a human and published."
+        else:
+            case.status = CaseStatus.BLOCKED
+            case.final_message_to_sender = (
+                "Your post has been reviewed by a human and not published. This decision is final."
+            )
+        notify_sender(post, case.final_message_to_sender)
+        return case
+
+    # HOLD_AWAIT_APPEAL
+    msg = (
+        f"Your post is currently held for moderation. {report.dsa_explanation} "
+        "You may appeal this decision."
+    )
+    case.final_message_to_sender = msg
+    case.history.append("notified sender; awaiting appeal")
+    notify_sender(post, msg)
+    return case

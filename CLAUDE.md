@@ -8,19 +8,43 @@ This file is loaded automatically by Claude Code in every session. Keep it short
 
 ```
 Post → moderate() → [ModerationResult, …] → summarize() → ModerationReport
+                                                              │
+                                                     route_initial()
+                                                              ▼
+                                ┌─────────────────────────────┼─────────────────────────────┐
+                                ▼                             ▼                             ▼
+                          AUTO_PUBLISH               SINGLE_REVIEW_FINAL              HOLD_AWAIT_APPEAL
+                          (verdict=allowed)          (flagged, conf ≤ 0.30)          (flagged, conf > 0.30)
+                                                                                              │
+                                                                                  on appeal:  handle_appeal()
+                                                                                              │
+                                                                                    route_appeal(conf)
+                                                                                              │
+                                                       ┌──────────────────────────────────────┼──────────────────────────────────────┐
+                                                       ▼                                      ▼                                      ▼
+                                              AI_REEVAL (APPEAL_MODEL)             HUMAN_REVIEW                        HUMAN_REVIEW_WITH_PANEL
+                                              (conf > 0.90)                        (0.70 < conf ≤ 0.90)                (conf ≤ 0.70)
+                                              still > 0.90 → blocked               approve / deny                      approve / deny / 3-person panel
+                                              else → re-route by new conf
 ```
 
 - **`moderate()`** — one or more agents each return a `ModerationResult` (decision, reasoning, severity, scam category, confidence)
 - **`summarize()`** — synthesises results into a final `ModerationReport` with a DSA Art. 17 explanation and recommended action
+- **`routing.route_initial()`** / **`routing.route_appeal()`** — pure, deterministic routing functions over confidence
+- **`appeal.handle_appeal()`** — orchestrates the appeal flow (AI re-eval, human review, optional 3-person panel)
+- **`review.py`** — typed stubs for `single_review`, `panel_review`, `notify_sender`. The reviewer functions raise `NotImplementedError` until wired to a real UI; `notify_sender` prints to stdout
 
 ## Module layout
 
 ```
 moderation/
   models.py          ← all model ID constants (import from here, never hardcode)
-  schemas.py         ← shared Pydantic types (Post, ModerationResult, ModerationReport, …)
+  schemas.py         ← shared Pydantic types (Post, ModerationResult, ModerationReport, Case, …)
   tracing.py         ← call setup_tracing() once at startup to enable Langfuse
-  pipeline.py        ← run_pipeline(post) orchestrates the full flow
+  pipeline.py        ← run_pipeline(post) and run_pipeline_with_routing(post)
+  routing.py         ← pure routing decisions over confidence (no I/O)
+  appeal.py          ← handle_appeal(post, case): AI re-eval → human → panel
+  review.py          ← stub interfaces for human reviewers + notify_sender
   agents/
     moderator.py     ← moderate(post) → list[ModerationResult]   [PERSON 1]
     summarizer.py    ← summarize(post, results) → ModerationReport  [PERSON 2]
@@ -28,8 +52,10 @@ tests/
   test_moderator.py
   test_summarizer.py
   test_pipeline.py
+  test_routing.py
+  test_appeal.py
 scripts/
-  run_pipeline.py    ← CLI: uv run python scripts/run_pipeline.py "<post text>"
+  run_pipeline.py    ← CLI: uv run python scripts/run_pipeline.py "<post text>" [--appeal]
 ```
 
 ## Parallel development
@@ -75,7 +101,7 @@ uv run streamlit run scripts/app.py
 
 - Type hints required everywhere
 - Pydantic `BaseModel` for every structured boundary (LLM outputs, configs, tool schemas)
-- Default model: `gemini/gemini-2.5-flash`. Escalate to `gemini/gemini-2.5-pro` only with an explicit reason; use `gemini/gemini-2.0-flash` for cheap classification
+- Default model: `gemini/gemini-2.5-flash` (`MODERATOR_MODEL` / `SUMMARIZER_MODEL`). Escalate to `gemini/gemini-2.5-pro` only with an explicit reason (`ESCALATION_MODEL`, also exported as `APPEAL_MODEL` for the appeal AI re-evaluation step); use `gemini/gemini-2.0-flash` for cheap classification (`CLASSIFIER_MODEL`)
 - Never bypass LiteLLM with raw `requests` / `httpx` calls to a provider
 - Every committed LLM call goes through Langfuse — no untraced calls in the codebase
 - Async by default for agent loops; sync only for scripts
