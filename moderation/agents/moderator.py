@@ -42,6 +42,7 @@ async def _run_agent(post: Post) -> ModerationResult:
             {"role": "user", "content": post.content},
         ],
         response_format={"type": "json_object"},
+        max_tokens=512,
         metadata={
             "generation_name": "moderator-decision",
             "trace_name": "moderation-pipeline",
