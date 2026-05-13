@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "deny": [
+      "Edit(features/**)",
+      "Write(features/**)"
+    ]
+  }
+}

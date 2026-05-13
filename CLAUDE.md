@@ -90,6 +90,12 @@ uv sync                       # install all deps (includes dev group)
 pytest                        # run tests (no API keys needed — all mocked)
 ruff check . && ruff format . # lint + format
 
+# Quality gate (complexity + coverage) — must pass before commit
+uv run python scripts/crap.py
+
+# Run pytest-bdd scenarios specifically
+uv run pytest tests/step_defs/
+
 # Try the pipeline end-to-end (needs real API keys)
 uv run python scripts/run_pipeline.py "Buy MOONTOKEN now — 100x guaranteed!"
 uv run python scripts/run_pipeline.py "..." --id post-123 --platform twitter
@@ -97,6 +103,22 @@ uv run python scripts/run_pipeline.py "..." --id post-123 --platform twitter
 # Launch the Streamlit UI
 uv run streamlit run scripts/app.py
 ```
+
+## Development workflow
+
+Every new or changed behaviour follows the 5-stage loop: **spec → TDD → CRAP → (mutate) → gate**. Each stage is owned by a specialised subagent in `.claude/agents/`.
+
+**Sacred rule:** never edit `features/*.feature` without explicit human approval — they are the locked contract. The Claude Code harness blocks writes to `features/**` via `.claude/settings.json`.
+
+| Subagent | Role | Tools |
+|---|---|---|
+| `spec-writer` | Drafts Gherkin scenarios in chat for human review | READONLY |
+| `tdd-developer` | Red → Green → Refactor against an approved `.feature` | full edit + test |
+| `crap-refactorer` | Keeps every function's CRAP score ≤ 15 | edits code, can't change behaviour |
+| `mutation-hunter` | Kills `mutmut` survivors (optional, inactive for now) | edits test files only |
+| `quality-gate` | Runs the full pipeline and reports pass/fail | READONLY + Bash |
+
+The CRAP score is `CC² × (1 − coverage)³ + CC` per function — high values mean complex code with weak tests. The current gate is **15** (relaxed for course velocity); tighten by editing `CRAP_GATE` in `scripts/crap.py`.
 
 ## Coding conventions
 
@@ -129,6 +151,7 @@ uv run streamlit run scripts/app.py
 - Don't hardcode model IDs in business logic — keep them in `moderation/models.py`
 - Don't add new dependencies without updating `pyproject.toml`
 - Don't write throwaway scripts in the repo root — put them in `scripts/`
+- Don't edit `features/*.feature` without explicit human approval — they are the protected spec
 
 ## First-time setup
 
