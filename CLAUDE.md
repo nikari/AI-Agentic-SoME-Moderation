@@ -113,6 +113,7 @@ uv run streamlit run scripts/app.py
 - **Moderation action** — remove / flag / shadow-ban / escalate
 - **Explanation** — the DSA Art. 17 statement of reasons attached to every action
 - **Violation category** — DSA-aligned taxonomy in `ViolationCategory`: crypto_scam, hate_speech, harassment, misinformation, spam, privacy_violation, self_harm, csam, terrorism, ip_infringement, other. The moderator returns a sparse list of `ViolationScore`s; `crypto_scam` remains the primary eval focus
+- **Confidence** — the AI's estimated probability that a post violates DSA (0.0 = certainly not, 1.0 = certainly is). Present **only** when verdict = `flagged`; `None` for allowed posts. Enforced by Pydantic validator on `ModerationResult` and `ModerationReport`
 - **Moderator** vs **evaluator** — distinct agents; boundaries TBD
 
 ## Definition of done for a moderation feature

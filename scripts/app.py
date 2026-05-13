@@ -50,7 +50,7 @@ _ROUTE_LABELS: dict[Route, str] = {
 # ── Session state init ────────────────────────────────────────────────────────
 
 for _key, _default in [
-    ("stage", "input"),        # input | moderated | appealing | done
+    ("stage", "input"),  # input | moderated | appealing | done
     ("report", None),
     ("route", None),
     ("post", None),
@@ -108,7 +108,8 @@ if st.session_state.stage in ("moderated", "appealing", "done"):
     # Metrics
     col1, col2 = st.columns(2)
     with col1:
-        st.metric("Confidence", f"{report.confidence:.0%}")
+        conf_display = "—" if report.confidence is None else f"{report.confidence:.0%}"
+        st.metric("Confidence", conf_display)
     with col2:
         st.metric("Severity", report.severity.value.capitalize() if report.severity else "—")
 
@@ -151,7 +152,9 @@ if st.session_state.stage in ("moderated", "appealing", "done"):
             st.session_state.stage = "done"
             st.rerun()
         if col_b.button("🚫 Deny (block)", use_container_width=True):
-            st.session_state.final_message = "Human reviewer upheld the block. This decision is final."
+            st.session_state.final_message = (
+                "Human reviewer upheld the block. This decision is final."
+            )
             st.session_state.stage = "done"
             st.rerun()
 
@@ -172,7 +175,10 @@ if st.session_state.stage in ("moderated", "appealing", "done"):
 
         # AI re-evaluation
         if appeal_route == AppealRoute.AI_REEVAL:
-            st.write(f"Confidence {report.confidence:.0%} > 90% → AI re-evaluation with a stronger model.")
+            st.write(
+                f"Confidence {report.confidence:.0%} > 90% → "
+                "AI re-evaluation with a stronger model."
+            )
             if st.button("▶️ Run AI re-evaluation", type="primary"):
                 with st.spinner("Re-evaluating…"):
                     try:
@@ -180,20 +186,26 @@ if st.session_state.stage in ("moderated", "appealing", "done"):
                     except Exception as e:
                         st.error(f"Re-evaluation error: {e}")
                         st.stop()
-                st.write(f"**Re-eval confidence:** {reeval.confidence:.0%}")
-                if reeval.confidence > 0.90:
+                if reeval.decision == ModerationDecision.ALLOWED:
                     st.session_state.final_message = (
-                        f"Appeal denied — AI re-evaluation upheld the block "
-                        f"(confidence {reeval.confidence:.0%}). Reason: {reeval.reasoning}"
+                        "Appeal granted — AI re-evaluation no longer flags this content."
                     )
                     st.session_state.stage = "done"
                 else:
-                    # Drop to human review with new confidence
-                    new_route = route_appeal(reeval.confidence)
-                    st.session_state.appeal_route = new_route
-                    st.session_state.report = st.session_state.report.model_copy(
-                        update={"confidence": reeval.confidence}
-                    )
+                    st.write(f"**Re-eval confidence:** {reeval.confidence:.0%}")
+                    if reeval.confidence > 0.90:
+                        st.session_state.final_message = (
+                            f"Appeal denied — AI re-evaluation upheld the block "
+                            f"(confidence {reeval.confidence:.0%}). Reason: {reeval.reasoning}"
+                        )
+                        st.session_state.stage = "done"
+                    else:
+                        # Drop to human review with new confidence
+                        new_route = route_appeal(reeval.confidence)
+                        st.session_state.appeal_route = new_route
+                        st.session_state.report = st.session_state.report.model_copy(
+                            update={"confidence": reeval.confidence}
+                        )
                 st.rerun()
 
         # Human review (single reviewer)
@@ -201,7 +213,9 @@ if st.session_state.stage in ("moderated", "appealing", "done"):
             st.write(f"Confidence {report.confidence:.0%} → single human reviewer.")
             col_a, col_b = st.columns(2)
             if col_a.button("✅ Approve (publish)", use_container_width=True):
-                st.session_state.final_message = "Human reviewer approved the appeal — post published."
+                st.session_state.final_message = (
+                    "Human reviewer approved the appeal — post published."
+                )
                 st.session_state.stage = "done"
                 st.rerun()
             if col_b.button("🚫 Deny (uphold block)", use_container_width=True):
@@ -216,7 +230,8 @@ if st.session_state.stage in ("moderated", "appealing", "done"):
             for i in range(3):
                 if i < len(votes):
                     icon = "✅" if votes[i] == "approve" else "🚫"
-                    st.write(f"Reviewer {i + 1}: {icon} {'Approve' if votes[i] == 'approve' else 'Deny'}")
+                    label = "Approve" if votes[i] == "approve" else "Deny"
+                    st.write(f"Reviewer {i + 1}: {icon} {label}")
                 else:
                     col_a, col_b = st.columns(2)
                     if col_a.button(f"✅ Reviewer {i + 1} approves", use_container_width=True):
@@ -230,9 +245,13 @@ if st.session_state.stage in ("moderated", "appealing", "done"):
             if len(st.session_state.panel_votes) == 3:
                 approves = st.session_state.panel_votes.count("approve")
                 if approves >= 2:
-                    st.session_state.final_message = f"Panel approved ({approves}/3) — post published."
+                    st.session_state.final_message = (
+                        f"Panel approved ({approves}/3) — post published."
+                    )
                 else:
-                    st.session_state.final_message = f"Panel denied ({approves}/3 approve) — block stands."
+                    st.session_state.final_message = (
+                        f"Panel denied ({approves}/3 approve) — block stands."
+                    )
                 st.session_state.stage = "done"
                 st.rerun()
 

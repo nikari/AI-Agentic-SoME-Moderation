@@ -5,8 +5,9 @@ sides (moderator and summarizer) together.
 """
 
 from enum import StrEnum
+from typing import Self
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ModerationDecision(StrEnum):
@@ -63,18 +64,38 @@ class Post(BaseModel):
 
 
 class ModerationResult(BaseModel):
-    """Output from a single moderation agent."""
+    """Output from a single moderation agent.
+
+    `confidence` is the AI's estimated probability that the post violates DSA
+    (0.0 = certainly not a violation, 1.0 = certainly a violation). It is
+    present only when `decision == FLAGGED`; `None` for allowed posts.
+    """
 
     post_id: str
     decision: ModerationDecision
     reasoning: str | None = None
     severity: Severity | None = None
     violations: list[ViolationScore] = Field(default_factory=list)
-    confidence: float = Field(ge=0.0, le=1.0)
+    confidence: float | None = None
+
+    @model_validator(mode="after")
+    def _check_confidence(self) -> Self:
+        if self.decision == ModerationDecision.FLAGGED:
+            if self.confidence is None:
+                raise ValueError("confidence is required when decision is flagged")
+            if not 0.0 <= self.confidence <= 1.0:
+                raise ValueError("confidence must be in [0.0, 1.0]")
+        elif self.confidence is not None:
+            raise ValueError("confidence must be None when decision is allowed")
+        return self
 
 
 class ModerationReport(BaseModel):
-    """Final client-facing report produced by the summarizer."""
+    """Final client-facing report produced by the summarizer.
+
+    `confidence` is the AI's estimated probability that the post violates DSA
+    (0.0–1.0). Present only when `verdict == FLAGGED`; `None` for allowed posts.
+    """
 
     post_id: str
     verdict: ModerationDecision
@@ -83,7 +104,18 @@ class ModerationReport(BaseModel):
     violations: list[ViolationScore] = Field(default_factory=list)
     recommended_action: RecommendedAction
     dsa_explanation: str | None = None  # DSA Art. 17 statement of reasons; None if allowed
-    confidence: float = Field(ge=0.0, le=1.0)
+    confidence: float | None = None
+
+    @model_validator(mode="after")
+    def _check_confidence(self) -> Self:
+        if self.verdict == ModerationDecision.FLAGGED:
+            if self.confidence is None:
+                raise ValueError("confidence is required when verdict is flagged")
+            if not 0.0 <= self.confidence <= 1.0:
+                raise ValueError("confidence must be in [0.0, 1.0]")
+        elif self.confidence is not None:
+            raise ValueError("confidence must be None when verdict is allowed")
+        return self
 
 
 class Route(StrEnum):

@@ -42,7 +42,7 @@ Cryptocurrency scam detection is the primary use case — be especially thorough
 Return a JSON object.
 
 If the post is ALLOWED (no violations), return:
-{"decision": "allowed", "confidence": <float 0.0–1.0>}
+{"decision": "allowed"}
 
 If the post is FLAGGED, return:
 {"decision": "flagged",
@@ -53,6 +53,10 @@ If the post is FLAGGED, return:
     ...
  ],
  "confidence": <float 0.0–1.0>}
+
+`confidence` is your estimated probability that the post violates the DSA:
+0.0 = certainly not a violation, 1.0 = certainly a violation. Only emit
+`confidence` on FLAGGED responses — never on ALLOWED.
 
 Only include violations where score > 0. Sort by score descending.
 Return only the JSON object. No other text.\
@@ -86,13 +90,19 @@ async def _run_agent(post: Post, model: str = MODERATOR_MODEL) -> ModerationResu
         },
     )
     raw = parse_json_response(response.choices[0].message.content)
+    decision = ModerationDecision(raw["decision"])
+    confidence = (
+        float(raw["confidence"])
+        if decision == ModerationDecision.FLAGGED and raw.get("confidence") is not None
+        else None
+    )
     return ModerationResult(
         post_id=post.id,
-        decision=ModerationDecision(raw["decision"]),
+        decision=decision,
         reasoning=raw.get("reasoning"),
         severity=Severity(raw["severity"]) if raw.get("severity") else None,
         violations=_parse_violations(raw.get("violations", [])),
-        confidence=float(raw["confidence"]),
+        confidence=confidence,
     )
 
 

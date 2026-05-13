@@ -10,32 +10,37 @@ from moderation.schemas import (
 )
 
 
-def _report(verdict: ModerationDecision, confidence: float) -> ModerationReport:
+def _flagged_report(confidence: float) -> ModerationReport:
     return ModerationReport(
         post_id="t",
-        verdict=verdict,
+        verdict=ModerationDecision.FLAGGED,
         reasoning="x",
-        recommended_action=RecommendedAction.NONE,
+        recommended_action=RecommendedAction.FLAG,
         dsa_explanation="x",
         confidence=confidence,
     )
 
 
-@pytest.mark.parametrize("confidence", [0.0, 0.3, 0.5, 0.99])
-def test_allowed_always_routes_to_auto_publish(confidence: float) -> None:
-    assert route_initial(_report(ModerationDecision.ALLOWED, confidence)) == Route.AUTO_PUBLISH
+def _allowed_report() -> ModerationReport:
+    return ModerationReport(
+        post_id="t",
+        verdict=ModerationDecision.ALLOWED,
+        recommended_action=RecommendedAction.NONE,
+    )
+
+
+def test_allowed_routes_to_auto_publish() -> None:
+    assert route_initial(_allowed_report()) == Route.AUTO_PUBLISH
 
 
 @pytest.mark.parametrize("confidence", [0.0, 0.10, 0.30])
 def test_flagged_at_or_below_30_routes_to_single_review_final(confidence: float) -> None:
-    assert (
-        route_initial(_report(ModerationDecision.FLAGGED, confidence)) == Route.SINGLE_REVIEW_FINAL
-    )
+    assert route_initial(_flagged_report(confidence)) == Route.SINGLE_REVIEW_FINAL
 
 
 @pytest.mark.parametrize("confidence", [0.31, 0.50, 0.90, 1.00])
 def test_flagged_above_30_routes_to_hold_await_appeal(confidence: float) -> None:
-    assert route_initial(_report(ModerationDecision.FLAGGED, confidence)) == Route.HOLD_AWAIT_APPEAL
+    assert route_initial(_flagged_report(confidence)) == Route.HOLD_AWAIT_APPEAL
 
 
 @pytest.mark.parametrize(

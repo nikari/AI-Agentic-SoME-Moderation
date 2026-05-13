@@ -40,7 +40,9 @@ Return a JSON object with exactly these fields:
                 — only categories with score > 0; sort by score descending; empty list if allowed
 - "recommended_action": one of "none", "flag", "remove", "shadow_ban", "escalate"
 - "dsa_explanation": formal DSA Art. 17 statement of reasons (2–3 sentences); null if allowed
-- "confidence": float 0.0–1.0 reflecting overall confidence in the verdict
+- "confidence": float 0.0–1.0 — estimated probability that the post violates the DSA
+                (0.0 = certainly not, 1.0 = certainly is). Set ONLY when verdict is
+                "flagged"; set to null when verdict is "allowed".
 
 Return only the JSON object. No other text.\
 """
@@ -79,13 +81,19 @@ async def summarize(post: Post, results: list[ModerationResult]) -> ModerationRe
         },
     )
     raw = parse_json_response(response.choices[0].message.content)
+    verdict = ModerationDecision(raw["verdict"])
+    confidence = (
+        float(raw["confidence"])
+        if verdict == ModerationDecision.FLAGGED and raw.get("confidence") is not None
+        else None
+    )
     return ModerationReport(
         post_id=post.id,
-        verdict=ModerationDecision(raw["verdict"]),
+        verdict=verdict,
         reasoning=raw.get("reasoning"),
         severity=Severity(raw["severity"]) if raw.get("severity") else None,
         violations=_parse_violations(raw.get("violations", [])),
         recommended_action=RecommendedAction(raw["recommended_action"]),
         dsa_explanation=raw.get("dsa_explanation"),
-        confidence=float(raw["confidence"]),
+        confidence=confidence,
     )

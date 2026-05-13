@@ -20,12 +20,10 @@ async def run_pipeline(post: Post) -> ModerationReport:
     """Run the AI portion of the moderation pipeline on a single post."""
     results = await moderate(post)
     if all(r.decision == ModerationDecision.ALLOWED for r in results):
-        avg_confidence = sum(r.confidence for r in results) / len(results)
         return ModerationReport(
             post_id=post.id,
             verdict=ModerationDecision.ALLOWED,
             recommended_action=RecommendedAction.NONE,
-            confidence=avg_confidence,
         )
     return await summarize(post, results)
 
@@ -43,7 +41,8 @@ async def run_pipeline_with_routing(post: Post) -> Case:
     report = await run_pipeline(post)
     route = route_initial(report)
     case = Case(post_id=post.id, report=report, route=route)
-    case.history.append(f"initial route: {route.value} (confidence={report.confidence:.2f})")
+    conf_str = "n/a" if report.confidence is None else f"{report.confidence:.2f}"
+    case.history.append(f"initial route: {route.value} (confidence={conf_str})")
 
     if route == Route.AUTO_PUBLISH:
         case.status = CaseStatus.PUBLISHED

@@ -2,9 +2,16 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from moderation.agents.moderator import moderate
-from moderation.schemas import ModerationDecision, Post, Severity, ViolationCategory
+from moderation.schemas import (
+    ModerationDecision,
+    ModerationResult,
+    Post,
+    Severity,
+    ViolationCategory,
+)
 
 
 def _mock_response(payload: dict) -> MagicMock:
@@ -70,18 +77,43 @@ async def test_moderate_returns_multiple_violations(mock_acompletion: AsyncMock)
 
 @patch("moderation.agents.moderator.litellm.acompletion", new_callable=AsyncMock)
 async def test_moderate_allows_clean_post(mock_acompletion: AsyncMock) -> None:
-    mock_acompletion.return_value = _mock_response(
-        {
-            "decision": "allowed",
-            "confidence": 0.98,
-        }
-    )
+    mock_acompletion.return_value = _mock_response({"decision": "allowed"})
     results = await moderate(Post(id="p2", content="Bitcoin had an interesting week."))
 
     r = results[0]
     assert r.decision == ModerationDecision.ALLOWED
     assert r.severity is None
     assert r.violations == []
+    assert r.confidence is None
+
+
+@patch("moderation.agents.moderator.litellm.acompletion", new_callable=AsyncMock)
+async def test_moderate_drops_confidence_from_allowed_responses(
+    mock_acompletion: AsyncMock,
+) -> None:
+    # Defensive: even if the LLM emits confidence on an allowed response,
+    # the parser must strip it before constructing ModerationResult.
+    mock_acompletion.return_value = _mock_response({"decision": "allowed", "confidence": 0.98})
+    results = await moderate(Post(id="p-drift", content="clean"))
+    assert results[0].confidence is None
+
+
+def test_moderation_result_validator_rejects_allowed_with_confidence() -> None:
+    with pytest.raises(ValidationError):
+        ModerationResult(
+            post_id="t",
+            decision=ModerationDecision.ALLOWED,
+            confidence=0.9,
+        )
+
+
+def test_moderation_result_validator_rejects_flagged_without_confidence() -> None:
+    with pytest.raises(ValidationError):
+        ModerationResult(
+            post_id="t",
+            decision=ModerationDecision.FLAGGED,
+            reasoning="x",
+        )
 
 
 @patch("moderation.agents.moderator.litellm.acompletion", new_callable=AsyncMock)

@@ -2,10 +2,12 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from moderation.agents.summarizer import summarize
 from moderation.schemas import (
     ModerationDecision,
+    ModerationReport,
     ModerationResult,
     Post,
     RecommendedAction,
@@ -43,7 +45,6 @@ def _allowed_result(post_id: str = "p1") -> ModerationResult:
         post_id=post_id,
         decision=ModerationDecision.ALLOWED,
         reasoning="No violation.",
-        confidence=0.95,
     )
 
 
@@ -79,7 +80,7 @@ async def test_summarize_allowed_post(mock_acompletion: AsyncMock) -> None:
             "violations": [],
             "recommended_action": "none",
             "dsa_explanation": None,
-            "confidence": 0.97,
+            "confidence": None,
         }
     )
     report = await summarize(Post(id="p2", content="Normal post."), [_allowed_result("p2")])
@@ -87,6 +88,44 @@ async def test_summarize_allowed_post(mock_acompletion: AsyncMock) -> None:
     assert report.recommended_action == RecommendedAction.NONE
     assert report.severity is None
     assert report.violations == []
+    assert report.confidence is None
+
+
+@patch("moderation.agents.summarizer.litellm.acompletion", new_callable=AsyncMock)
+async def test_summarize_drops_confidence_from_allowed_responses(
+    mock_acompletion: AsyncMock,
+) -> None:
+    # Defensive: even if the LLM emits confidence on an allowed verdict,
+    # the parser must strip it before constructing ModerationReport.
+    mock_acompletion.return_value = _mock_response(
+        {
+            "verdict": "allowed",
+            "violations": [],
+            "recommended_action": "none",
+            "confidence": 0.97,
+        }
+    )
+    report = await summarize(Post(id="p-drift", content="clean"), [_allowed_result("p-drift")])
+    assert report.confidence is None
+
+
+def test_moderation_report_validator_rejects_allowed_with_confidence() -> None:
+    with pytest.raises(ValidationError):
+        ModerationReport(
+            post_id="t",
+            verdict=ModerationDecision.ALLOWED,
+            recommended_action=RecommendedAction.NONE,
+            confidence=0.9,
+        )
+
+
+def test_moderation_report_validator_rejects_flagged_without_confidence() -> None:
+    with pytest.raises(ValidationError):
+        ModerationReport(
+            post_id="t",
+            verdict=ModerationDecision.FLAGGED,
+            recommended_action=RecommendedAction.FLAG,
+        )
 
 
 @patch("moderation.agents.summarizer.litellm.acompletion", new_callable=AsyncMock)

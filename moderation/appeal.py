@@ -48,7 +48,17 @@ async def _process_appeal(post: Post, case: Case, confidence: float) -> Case:
 
 
 async def _handle_ai_reeval(post: Post, case: Case) -> Case:
+    from moderation.schemas import ModerationDecision
+
     result = await _ai_reevaluate(post)
+    if result.decision == ModerationDecision.ALLOWED:
+        case.history.append("AI re-eval: now allowed — appeal granted")
+        return _finalize(
+            case,
+            CaseStatus.PUBLISHED,
+            "Your appeal has been granted: AI re-evaluation no longer flags this content.",
+            post,
+        )
     case.history.append(f"AI re-eval confidence: {result.confidence:.2f}")
     if result.confidence > 0.90:
         return _finalize(
