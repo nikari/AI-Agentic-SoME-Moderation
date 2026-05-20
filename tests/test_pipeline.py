@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from moderation.pipeline import run_pipeline, run_pipeline_with_routing
+from moderation.pipeline import REPORT_RATE_THRESHOLD, run_pipeline, run_pipeline_with_routing
 from moderation.schemas import (
     CaseStatus,
     ModerationDecision,
@@ -12,6 +12,7 @@ from moderation.schemas import (
     RecommendedAction,
     ReviewerVerdict,
     Route,
+    ViolationCategory,
 )
 
 
@@ -44,6 +45,50 @@ async def test_pipeline_calls_agents_in_order(
     mock_summarize.assert_called_once()
     assert report.verdict == ModerationDecision.FLAGGED
     assert report.recommended_action == RecommendedAction.REMOVE
+
+
+@patch("moderation.pipeline.moderate", new_callable=AsyncMock)
+async def test_pipeline_skips_moderation_below_report_threshold(
+    mock_moderate: AsyncMock,
+) -> None:
+    post = Post(
+        id="p1", content="Some post", views=1000, report_types=[ViolationCategory.SPAM] * 3
+    )  # 0.3% < 5%
+    report = await run_pipeline(post)
+    assert report.verdict == ModerationDecision.ALLOWED
+    assert report.recommended_action == RecommendedAction.NONE
+    assert "threshold" in (report.reasoning or "")
+    mock_moderate.assert_not_called()
+
+
+@patch("moderation.pipeline.moderate", new_callable=AsyncMock)
+async def test_pipeline_moderates_at_report_threshold(
+    mock_moderate: AsyncMock,
+) -> None:
+    mock_moderate.return_value = [
+        ModerationResult(post_id="p1", decision=ModerationDecision.ALLOWED)
+    ]
+    # exactly at threshold (not below) — should still moderate
+    views = 1000
+    n_reports = int(REPORT_RATE_THRESHOLD * views)
+    post = Post(
+        id="p1",
+        content="Some post",
+        views=views,
+        report_types=[ViolationCategory.SPAM] * n_reports,
+    )
+    await run_pipeline(post)
+    mock_moderate.assert_called_once()
+
+
+@patch("moderation.pipeline.moderate", new_callable=AsyncMock)
+async def test_pipeline_moderates_without_views(mock_moderate: AsyncMock) -> None:
+    mock_moderate.return_value = [
+        ModerationResult(post_id="p1", decision=ModerationDecision.ALLOWED)
+    ]
+    post = Post(id="p1", content="Some post")  # no views/reports set
+    await run_pipeline(post)
+    mock_moderate.assert_called_once()
 
 
 def _allowed_report(post_id: str = "p1") -> ModerationReport:

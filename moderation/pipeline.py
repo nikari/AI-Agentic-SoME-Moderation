@@ -15,9 +15,29 @@ from moderation.schemas import (
     Route,
 )
 
+REPORT_RATE_THRESHOLD = 0.05  # skip AI moderation below this reports/views ratio
+
+
+def _below_report_threshold(post: Post) -> bool:
+    if post.views is None or post.views == 0:
+        return False
+    return len(post.report_types) / post.views < REPORT_RATE_THRESHOLD
+
 
 async def run_pipeline(post: Post) -> ModerationReport:
     """Run the AI portion of the moderation pipeline on a single post."""
+    if _below_report_threshold(post):
+        n = len(post.report_types)
+        rate = n / post.views  # type: ignore[operator]
+        return ModerationReport(
+            post_id=post.id,
+            verdict=ModerationDecision.ALLOWED,
+            recommended_action=RecommendedAction.NONE,
+            reasoning=(
+                f"Report rate {n}/{post.views} ({rate:.1%}) is below the"
+                f" {REPORT_RATE_THRESHOLD:.0%} threshold — AI moderation skipped."
+            ),
+        )
     results = await moderate(post)
     if all(r.decision == ModerationDecision.ALLOWED for r in results):
         return ModerationReport(

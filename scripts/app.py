@@ -13,7 +13,7 @@ load_dotenv()
 
 from moderation.agents.moderator import _run_agent  # noqa: E402
 from moderation.models import APPEAL_MODEL  # noqa: E402
-from moderation.pipeline import run_pipeline  # noqa: E402
+from moderation.pipeline import REPORT_RATE_THRESHOLD, run_pipeline  # noqa: E402
 from moderation.routing import route_appeal, route_initial  # noqa: E402
 from moderation.schemas import (  # noqa: E402
     AppealRoute,
@@ -21,6 +21,7 @@ from moderation.schemas import (  # noqa: E402
     Post,
     RecommendedAction,
     Route,
+    ViolationCategory,
 )
 from moderation.tracing import setup_tracing  # noqa: E402
 
@@ -36,8 +37,9 @@ def _reset() -> None:
         "appeal_route",
         "panel_votes",
         "final_message",
+        "pending_reports",
     ):
-        st.session_state[key] = {"stage": "input"}.get(key)
+        st.session_state[key] = {"stage": "input", "pending_reports": []}.get(key)
     st.session_state.stage = "input"
 
 
@@ -65,6 +67,7 @@ for _key, _default in [
     ("appeal_route", None),
     ("panel_votes", []),
     ("final_message", None),
+    ("pending_reports", []),
 ]:
     if _key not in st.session_state:
         st.session_state[_key] = _default
@@ -84,13 +87,15 @@ if st.session_state.stage == "input":
         placeholder="e.g. Send me 1 ETH and I'll send back 10x — limited time only!",
     )
 
+    views_input = st.number_input("Views", min_value=0, value=0, step=1)
+    post_views = int(views_input) if views_input > 0 else None
+
     st.write("**Image** (optional)")
     uploaded_image = st.file_uploader(
         "Upload an image",
         type=["jpg", "jpeg", "png", "gif", "webp"],
         label_visibility="collapsed",
     )
-
     if uploaded_image:
         image_bytes = uploaded_image.read()
         image_type = uploaded_image.type
@@ -99,26 +104,62 @@ if st.session_state.stage == "input":
         image_bytes = None
         image_type = None
 
-    has_input = bool(post_text.strip() or image_bytes)
-    if st.button("Analyse", type="primary", disabled=not has_input):
-        with st.spinner("Analysing post…"):
-            post = Post(
-                id="ui-post",
-                content=post_text.strip(),
-                image_data=image_bytes,
-                image_media_type=image_type,
-            )
-            try:
-                report = asyncio.run(run_pipeline(post))
-            except Exception as e:
-                st.error(f"Pipeline error: {e}")
-                st.exception(e)
-                st.stop()
+    def _run_analysis() -> None:
+        post = Post(
+            id="ui-post",
+            content=post_text.strip(),
+            image_data=image_bytes,
+            image_media_type=image_type,
+            views=post_views,
+            report_types=[ViolationCategory(r) for r in st.session_state.pending_reports],
+        )
+        try:
+            report = asyncio.run(run_pipeline(post))
+        except Exception as e:
+            st.error(f"Pipeline error: {e}")
+            st.exception(e)
+            st.stop()
         st.session_state.post = post
         st.session_state.report = report
         st.session_state.route = route_initial(report)
         st.session_state.stage = "moderated"
-        st.rerun()
+
+    st.write("**Reports**")
+    _CATEGORY_LABELS = {v: v.value.replace("_", " ").title() for v in ViolationCategory}
+    col_sel, col_btn = st.columns([3, 1])
+    with col_sel:
+        selected_type = st.selectbox(
+            "Report type",
+            options=list(ViolationCategory),
+            format_func=lambda v: _CATEGORY_LABELS[v],
+            label_visibility="collapsed",
+        )
+    with col_btn:
+        st.write("")  # vertical alignment nudge
+        if st.button("Add", use_container_width=True):
+            st.session_state.pending_reports.append(selected_type.value)
+            n = len(st.session_state.pending_reports)
+            threshold_crossed = post_views and n / post_views >= REPORT_RATE_THRESHOLD
+            if threshold_crossed and (post_text.strip() or image_bytes):
+                with st.spinner(f"Threshold reached ({n}/{post_views}) — analysing…"):
+                    _run_analysis()
+            st.rerun()
+
+    if st.session_state.pending_reports:
+        counts: dict[str, int] = {}
+        for r in st.session_state.pending_reports:
+            counts[r] = counts.get(r, 0) + 1
+        summary = "  |  ".join(
+            f"{k.replace('_', ' ').title()} ×{v}" for k, v in counts.items()
+        )
+        col_sum, col_clr = st.columns([4, 1])
+        with col_sum:
+            st.caption(f"Added: {summary}")
+        with col_clr:
+            if st.button("Clear", use_container_width=True):
+                st.session_state.pending_reports = []
+                st.rerun()
+
 
 # ── Stage: moderated ──────────────────────────────────────────────────────────
 
@@ -131,6 +172,19 @@ if st.session_state.stage in ("moderated", "appealing", "done"):
 
     if post.image_data:
         st.image(post.image_data, caption="Submitted image", use_container_width=True)
+
+    skipped = (
+        post.views
+        and report.verdict == ModerationDecision.ALLOWED
+        and "threshold" in (report.reasoning or "")
+    )
+    if skipped:
+        n = len(post.report_types)
+        rate = n / post.views  # type: ignore[operator]
+        st.info(
+            f"AI moderation skipped — report rate {n}/{post.views}"
+            f" ({rate:.1%}) is below the 5% threshold."
+        )
 
     # Verdict banner
     if report.verdict == ModerationDecision.FLAGGED:

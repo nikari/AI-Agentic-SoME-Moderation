@@ -7,6 +7,7 @@ signature (Post -> ModerationResult) and add it to moderate() below.
 """
 
 import base64
+from collections import Counter
 
 import litellm
 
@@ -80,12 +81,24 @@ def _parse_violations(raw_violations: list[dict]) -> list[ViolationScore]:
     ]
 
 
+def _report_context(post: Post) -> str | None:
+    if not post.report_types:
+        return None
+    counts = Counter(rt.value for rt in post.report_types)
+    summary = ", ".join(f"{cat} ×{n}" for cat, n in counts.most_common())
+    return f"[User reports ({len(post.report_types)} total): {summary}]"
+
+
 def _build_user_content(post: Post) -> list[dict] | str:
+    context = _report_context(post)
+    text_parts = [p for p in [context, post.content] if p]
+    text = "\n\n".join(text_parts)
+
     if not post.image_data:
-        return post.content
+        return text
     parts: list[dict] = []
-    if post.content:
-        parts.append({"type": "text", "text": post.content})
+    if text:
+        parts.append({"type": "text", "text": text})
     b64 = base64.b64encode(post.image_data).decode()
     media_type = post.image_media_type or "image/jpeg"
     parts.append({"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{b64}"}})

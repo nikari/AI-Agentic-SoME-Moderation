@@ -63,6 +63,8 @@ class Post(BaseModel):
     author_id: str | None = None
     image_data: bytes | None = None
     image_media_type: str | None = None  # e.g. "image/jpeg", "image/png"
+    views: int | None = None
+    report_types: list[ViolationCategory] = Field(default_factory=list)
 
 
 class ModerationResult(BaseModel):
