@@ -4,6 +4,8 @@ import ast
 import json
 import re
 
+_WHITESPACE_ESCAPES = {"\n": "\\n", "\r": "\\r", "\t": "\\t"}
+
 
 def _escape_newlines_in_strings(s: str) -> str:
     """Escape literal newlines/tabs inside JSON string values."""
@@ -21,12 +23,8 @@ def _escape_newlines_in_strings(s: str) -> str:
             continue
         if c == '"':
             in_string = not in_string
-        if in_string and c == "\n":
-            result.append("\\n")
-        elif in_string and c == "\r":
-            result.append("\\r")
-        elif in_string and c == "\t":
-            result.append("\\t")
+        if in_string and c in _WHITESPACE_ESCAPES:
+            result.append(_WHITESPACE_ESCAPES[c])
         else:
             result.append(c)
         i += 1

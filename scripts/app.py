@@ -28,7 +28,15 @@ setup_tracing()
 
 
 def _reset() -> None:
-    for key in ("stage", "report", "route", "post", "appeal_route", "panel_votes", "final_message"):
+    for key in (
+        "stage",
+        "report",
+        "route",
+        "post",
+        "appeal_route",
+        "panel_votes",
+        "final_message",
+    ):
         st.session_state[key] = {"stage": "input"}.get(key)
     st.session_state.stage = "input"
 
@@ -75,9 +83,31 @@ if st.session_state.stage == "input":
         height=150,
         placeholder="e.g. Send me 1 ETH and I'll send back 10x — limited time only!",
     )
-    if st.button("Analyse", type="primary", disabled=not post_text.strip()):
+
+    st.write("**Image** (optional)")
+    uploaded_image = st.file_uploader(
+        "Upload an image",
+        type=["jpg", "jpeg", "png", "gif", "webp"],
+        label_visibility="collapsed",
+    )
+
+    if uploaded_image:
+        image_bytes = uploaded_image.read()
+        image_type = uploaded_image.type
+        st.image(image_bytes, caption="Uploaded image", width=300)
+    else:
+        image_bytes = None
+        image_type = None
+
+    has_input = bool(post_text.strip() or image_bytes)
+    if st.button("Analyse", type="primary", disabled=not has_input):
         with st.spinner("Analysing post…"):
-            post = Post(id="ui-post", content=post_text.strip())
+            post = Post(
+                id="ui-post",
+                content=post_text.strip(),
+                image_data=image_bytes,
+                image_media_type=image_type,
+            )
             try:
                 report = asyncio.run(run_pipeline(post))
             except Exception as e:
@@ -98,6 +128,9 @@ if st.session_state.stage in ("moderated", "appealing", "done"):
     post = st.session_state.post
 
     st.divider()
+
+    if post.image_data:
+        st.image(post.image_data, caption="Submitted image", use_container_width=True)
 
     # Verdict banner
     if report.verdict == ModerationDecision.FLAGGED:

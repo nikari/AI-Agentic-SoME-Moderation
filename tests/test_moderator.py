@@ -164,3 +164,44 @@ async def test_moderate_raises_on_none_content(mock_acompletion: AsyncMock) -> N
     mock_acompletion.return_value = m
     with pytest.raises(ValueError, match="no content"):
         await moderate(Post(id="p6", content="Some post."))
+
+
+@patch("moderation.agents.moderator.litellm.acompletion", new_callable=AsyncMock)
+async def test_moderate_combined_agent_for_text_and_image(mock_acompletion: AsyncMock) -> None:
+    mock_acompletion.return_value = _mock_response(
+        {
+            "decision": "flagged",
+            "reasoning": "Caption combined with fake profit screenshot indicates crypto scam.",
+            "severity": "high",
+            "violations": [
+                {"category": "crypto_scam", "score": 0.93, "reasoning": "Fake screenshot."}
+            ],
+            "confidence": 0.93,
+        }
+    )
+    fake_image = b"\x89PNG\r\n\x1a\n"  # minimal PNG-like header
+    post = Post(
+        id="img-p1",
+        content="Check out my gains!",
+        image_data=fake_image,
+        image_media_type="image/png",
+    )
+    results = await moderate(post)
+
+    assert len(results) == 1
+    assert results[0].decision == ModerationDecision.FLAGGED
+    assert results[0].violations[0].category == ViolationCategory.CRYPTO_SCAM
+    # Single call includes both text and image parts
+    mock_acompletion.assert_called_once()
+    user_message = mock_acompletion.call_args.kwargs["messages"][1]
+    content_types = [part["type"] for part in user_message["content"]]
+    assert "text" in content_types
+    assert "image_url" in content_types
+
+
+@patch("moderation.agents.moderator.litellm.acompletion", new_callable=AsyncMock)
+async def test_moderate_skips_image_agent_without_image(mock_acompletion: AsyncMock) -> None:
+    mock_acompletion.return_value = _mock_response({"decision": "allowed", "confidence": 0.95})
+    results = await moderate(Post(id="text-only", content="Normal post."))
+    assert len(results) == 1
+    mock_acompletion.assert_called_once()

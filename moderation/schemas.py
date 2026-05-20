@@ -58,9 +58,11 @@ class Post(BaseModel):
     """A social media post to be moderated."""
 
     id: str
-    content: str
+    content: str = ""
     platform: str | None = None
     author_id: str | None = None
+    image_data: bytes | None = None
+    image_media_type: str | None = None  # e.g. "image/jpeg", "image/png"
 
 
 class ModerationResult(BaseModel):

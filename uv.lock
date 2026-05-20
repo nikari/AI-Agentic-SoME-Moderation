@@ -18,9 +18,11 @@ dependencies = [
     { name = "anthropic" },
     { name = "langfuse" },
     { name = "litellm" },
+    { name = "pillow" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "streamlit" },
+    { name = "streamlit-paste-button" },
 ]
 
 [package.dev-dependencies]
@@ -38,9 +40,11 @@ requires-dist = [
     { name = "anthropic", specifier = ">=0.40.0" },
     { name = "langfuse", specifier = ">=2.0.0,<3.0.0" },
     { name = "litellm", specifier = ">=1.50.0" },
+    { name = "pillow", specifier = ">=10.0.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "streamlit", specifier = ">=1.40.0" },
+    { name = "streamlit-paste-button", specifier = ">=0.1.2" },
 ]
 
 [package.metadata.requires-dev]
@@ -2404,6 +2408,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/5d/f8/b2daf7a5f8ae15527daf94406e771bb6075e958a01c3dde9eba79dc3c9a3/streamlit-1.57.0.tar.gz", hash = "sha256:0b028d305c1a1a757071b2c9504966787602842fc8af6e873795ca58d2b4d12f", size = 8678859, upload-time = "2026-04-28T22:13:32.238Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d8/1a/3ca2293d8552bacea3e67e9600d2d1df7df4a325059769ad83d91c279595/streamlit-1.57.0-py3-none-any.whl", hash = "sha256:0d1d41972aeade5637dbb0e7f0eefa5312272f85304923d240a1b1f0475249c8", size = 9194216, upload-time = "2026-04-28T22:13:29.624Z" },
+]
+
+[[package]]
+name = "streamlit-paste-button"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "jinja2" },
+    { name = "pillow" },
+    { name = "streamlit" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e6/c8/6a6fd631f33e054a448263a6f07b8ab5c883fa42aa41ce7da39145f5b2dc/streamlit-paste-button-0.1.2.tar.gz", hash = "sha256:c06dfd8163bd6eeeba0dc0b8294549395594c04a2854aff899bd261942efb0f0", size = 8074, upload-time = "2024-01-10T07:14:47.05Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/17/e5/a87c0f882089b2b245dd6088e490bfce7aa3b4d0c51aca836487ca0f8518/streamlit_paste_button-0.1.2-py3-none-any.whl", hash = "sha256:f65609333ec0169b088cafb5897522354207bf198511552928766b015d65bef2", size = 7912, upload-time = "2024-01-10T07:14:45.49Z" },
 ]
 
 [[package]]

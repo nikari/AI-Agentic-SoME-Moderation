@@ -6,6 +6,8 @@ To add a second agent, define a new async function following the same
 signature (Post -> ModerationResult) and add it to moderate() below.
 """
 
+import base64
+
 import litellm
 
 from moderation.models import MODERATOR_MODEL
@@ -21,14 +23,18 @@ from moderation.utils import parse_json_response
 
 _SYSTEM_PROMPT = """\
 You are a social media content moderator assessing posts for violations of the EU
-Digital Services Act.
+Digital Services Act. A post may contain text, an image, or both — assess all provided
+content together as a single unit. When both are present, consider how they interact:
+a combination that is suspicious is more serious than either part alone (e.g. innocent-
+looking caption paired with a fake profit screenshot).
 
 Score the post against these violation categories (0.0–1.0 = likelihood the category applies):
-- crypto_scam:       cryptocurrency scams (rugpulls, fake giveaways, impersonation,
-                     pump-and-dumps, phishing)
+- crypto_scam:       cryptocurrency scams — text: rugpulls, fake giveaways, impersonation,
+                     pump-and-dumps, phishing; image: fake profit screenshots, scam QR codes,
+                     fake giveaway graphics, pump-and-dump imagery, phishing overlays
 - hate_speech:       attacks on protected groups (race, religion, gender, sexuality, …)
 - harassment:        bullying, threats, or targeted abuse of an individual
-- misinformation:    demonstrably false claims with risk of public harm
+- misinformation:    demonstrably false claims with risk of public harm (incl. doctored images)
 - spam:              bulk unsolicited commercial content
 - privacy_violation: doxxing or non-consensual sharing of personal info / images
 - self_harm:         glorification of, or instructions for, self-harm or suicide
@@ -74,12 +80,24 @@ def _parse_violations(raw_violations: list[dict]) -> list[ViolationScore]:
     ]
 
 
+def _build_user_content(post: Post) -> list[dict] | str:
+    if not post.image_data:
+        return post.content
+    parts: list[dict] = []
+    if post.content:
+        parts.append({"type": "text", "text": post.content})
+    b64 = base64.b64encode(post.image_data).decode()
+    media_type = post.image_media_type or "image/jpeg"
+    parts.append({"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{b64}"}})
+    return parts
+
+
 async def _run_agent(post: Post, model: str = MODERATOR_MODEL) -> ModerationResult:
     response = await litellm.acompletion(
         model=model,
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
-            {"role": "user", "content": post.content},
+            {"role": "user", "content": _build_user_content(post)},
         ],
         response_format={"type": "json_object"},
         max_tokens=1024,
@@ -107,5 +125,7 @@ async def _run_agent(post: Post, model: str = MODERATOR_MODEL) -> ModerationResu
 
 
 async def moderate(post: Post) -> list[ModerationResult]:
-    """Run all moderation agents on a post and return their results."""
+    """Run the moderation agent on a post and return its result."""
+    if not post.content and not post.image_data:
+        return []
     return [await _run_agent(post)]
