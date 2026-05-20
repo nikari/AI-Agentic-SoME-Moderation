@@ -126,6 +126,8 @@ if st.session_state.stage == "input":
 
     st.write("**Reports**")
     _CATEGORY_LABELS = {v: v.value.replace("_", " ").title() for v in ViolationCategory}
+    _CATEGORY_LABELS[ViolationCategory.CSAM] = "CSAM"
+    _CATEGORY_LABELS[ViolationCategory.IP_INFRINGEMENT] = "IP Infringement"
     col_sel, col_btn = st.columns([3, 1])
     with col_sel:
         selected_type = st.selectbox(
